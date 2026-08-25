@@ -1,6 +1,6 @@
-# Incident Management Prototype
+# GMV Incident Management Prototype
 
-A clickable prototype of an **Incident Management** module for a transit-ops platform, modeled on a real product ("GMV Sync") from provided UI mockups and a requirements document. Built as part of a job-application assessment on using AI tools to design and build software — the app was developed collaboratively with [Claude Code](https://claude.com/claude-code), from initial scaffolding through iterative feature work, bug fixes, and this review pass.
+Ari Clouse's clickable prototype of an **Incident Management** module for a transit-ops platform, modeled on a real product ("GMV Sync") from provided UI mockups and a requirements document. Built as part of a job-application assessment on using AI tools to design and build software — the app was developed collaboratively with [Claude Code](https://claude.com/claude-code), from initial scaffolding through iterative feature work, bug fixes, and this review pass.
 
 ## What's here
 
