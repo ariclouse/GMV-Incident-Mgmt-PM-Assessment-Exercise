@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Incident Management Prototype
 
-## Getting Started
+A clickable prototype of an **Incident Management** module for a transit-ops platform, modeled on a real product ("GMV Sync") from provided UI mockups and a requirements document. Built as part of a job-application assessment on using AI tools to design and build software — the app was developed collaboratively with [Claude Code](https://claude.com/claude-code), from initial scaffolding through iterative feature work, bug fixes, and this review pass.
 
-First, run the development server:
+## What's here
+
+- **Incident list** — active/closed tabs, quick-filter pills (Unassigned / Open / My Incidents), search, and a filter drawer (type, route, driver, date, stale-open).
+- **Incident detail** — rich-text description with autosave, comment/activity history, assignee picker, file attachments, and vehicle-location history.
+- **Status workflow** — a guided Open → In Review → Closed flow (enforced both in the UI and the API) with an optional comment on each status change.
+- **Report Incident** — a multi-step creation flow with type-driven defaults (e.g. Emergency incidents auto-set Critical priority) and severity pills.
+- **Export** — single or bulk incident export to CSV or PDF, including full descriptions, comments, and activity history.
+- **Insights dashboard** — built-in charts (by type, severity, route, assignee, driver, resolution rate, 14-day trends) plus a drag-and-drop layout, hide/restore, and a custom dashboard builder (choose chart type, grouping, and filters) with edit support.
+- **Feedback** — a lightweight 1–5 star "Leave Feedback" flow with a rating-dependent follow-up prompt.
+
+## Tech stack
+
+- [Next.js 16](https://nextjs.org) (App Router) + React 19 + TypeScript
+- Tailwind CSS v4
+- Next.js Route Handlers as a mock backend over an in-memory data store (resets on server restart — there's no database)
+- `@dnd-kit` for drag-and-drop dashboard reordering
+- `jspdf` / `jspdf-autotable` for client-side PDF export
+
+## Running locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Notes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This is a prototype: the "backend" is an in-memory store seeded with sample incidents, so data does not persist across server restarts. It's meant to demonstrate UI/UX, product thinking, and end-to-end interaction design rather than to be production infrastructure.
