@@ -26,7 +26,7 @@ export default function IncidentList() {
   const searchParams = useSearchParams();
   const initialView = searchParams.get("view");
   const [tab, setTab] = useState<"active" | "closed">(initialView === "closed" ? "closed" : "active");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(searchParams.get("incident"));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [creationStep, setCreationStep] = useState<"closed" | "type" | "details">("closed");
   const [draftType, setDraftType] = useState<IncidentType | null>(null);

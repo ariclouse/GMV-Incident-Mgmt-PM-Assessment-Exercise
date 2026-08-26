@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { RefreshCw, RotateCcw, ArrowRight, Plus, ChevronDown, Sparkles } from "lucide-react";
+import { RefreshCw, RotateCcw, Plus, ChevronDown, Sparkles } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -17,66 +16,66 @@ import { useIncidents, useMeta } from "@/lib/useIncidents";
 import {
   applyCustomFilters,
   ChartKind,
+  compareLast7DaysToPrior,
   computeGroupedCounts,
   countByAssignee,
-  countByDriver,
-  countByPriority,
-  countByRoute,
-  countByType,
+  countByTypeSorted,
   CustomDashboardConfig,
+  dailyReopenedTrend,
   dailyResolvedTrend,
   dailyTrend,
+  DateRangeOption,
+  DATE_RANGE_OPTIONS,
   describeCustomFilters,
-  formatCompact,
+  firstResponseStats,
   formatDuration,
   GroupByField,
+  incidentsInDateRange,
   isOpen,
+  KPI_TARGETS,
+  reopenStats,
   resolutionStats,
   StatusScope,
   TrendMetric,
 } from "@/lib/insights";
-import StatTile from "./StatTile";
+import { IncidentType } from "@/lib/types";
 import ChartCard from "./ChartCard";
 import BarChart from "./BarChart";
-import Meter from "./Meter";
 import TrendLineChart from "./TrendLineChart";
 import SortablePanel from "./SortablePanel";
 import CreateDashboardModal from "./CreateDashboardModal";
+import AtRiskTable from "./AtRiskTable";
+import FilterBar from "./FilterBar";
+import HorizontalBarList from "./HorizontalBarList";
+import InsightBanner from "./InsightBanner";
+import KpiTrendTile from "./KpiTrendTile";
 import { formatTime } from "@/lib/format";
 
 const AUTO_REFRESH_MS = 15_000;
-const SEVERITY_COLORS = ["#86b6ef", "#3987e5", "#1c5cab", "#0d366b"];
 
 type BuiltInPanelId =
-  | "type"
-  | "severity"
-  | "resolution"
-  | "route"
   | "assignee"
-  | "driver"
+  | "recurrence"
   | "trend"
-  | "resolutionTrend";
+  | "atRisk";
 
 const DEFAULT_ORDER: BuiltInPanelId[] = [
-  "type",
-  "severity",
-  "resolution",
-  "route",
-  "assignee",
-  "driver",
   "trend",
-  "resolutionTrend",
+  "assignee",
+  "recurrence",
+  "atRisk",
 ];
 
 const PANEL_TITLES: Record<BuiltInPanelId, string> = {
-  type: "Open Incidents by Type",
-  severity: "Open Incidents by Severity",
-  resolution: "Incident Resolution Rate",
-  route: "Incidents by Route",
   assignee: "Incidents by Assignee",
-  driver: "Incidents by Driver",
+  recurrence: "Recurrence by Category",
   trend: "Incident Volume — Last 14 Days",
-  resolutionTrend: "Incident Resolution — Last 14 Days",
+  atRisk: "At-Risk & Overdue Incidents",
+};
+
+// Panels dense enough to need more than one grid column at desktop width.
+const WIDE_PANELS: Partial<Record<string, string>> = {
+  atRisk: "md:col-span-2 lg:col-span-3",
 };
 
 function isBuiltIn(id: string): id is BuiltInPanelId {
@@ -91,9 +90,9 @@ interface StoredLayout {
   customPanels: CustomDashboardConfig[];
 }
 
-const GROUP_BY_VALUES: GroupByField[] = ["type", "priority", "status", "route", "assignee", "driver"];
+const GROUP_BY_VALUES: GroupByField[] = ["type", "priority", "status", "route", "assignee", "driver", "sla"];
 const CHART_KIND_VALUES: ChartKind[] = ["bar", "trend"];
-const TREND_METRIC_VALUES: TrendMetric[] = ["created", "resolved"];
+const TREND_METRIC_VALUES: TrendMetric[] = ["created", "resolved", "reopened"];
 const STATUS_SCOPE_VALUES: StatusScope[] = ["all", "active", "open", "closed"];
 
 // Defends against a stale/malformed panel config left over from an earlier layout schema
@@ -115,23 +114,35 @@ function isValidCustomPanel(value: unknown): value is CustomDashboardConfig {
   );
 }
 
+// Reconciles a saved layout against the CURRENT set of built-in panels rather than requiring
+// an exact match: a panel removed/renamed since the user last saved just drops out of their
+// order/hidden lists, a newly-added one gets appended, and — critically — the user's own
+// custom dashboards are never discarded just because a built-in panel's id list changed.
 function loadStoredLayout(): StoredLayout | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (
-      parsed &&
-      Array.isArray(parsed.order) &&
-      Array.isArray(parsed.hidden) &&
-      Array.isArray(parsed.customPanels) &&
-      DEFAULT_ORDER.every((id) => parsed.order.includes(id))
+      !parsed ||
+      !Array.isArray(parsed.order) ||
+      !Array.isArray(parsed.hidden) ||
+      !Array.isArray(parsed.customPanels)
     ) {
-      return {
-        ...parsed,
-        customPanels: parsed.customPanels.filter(isValidCustomPanel),
-      } as StoredLayout;
+      return null;
     }
+
+    const customPanels = (parsed.customPanels as unknown[]).filter(isValidCustomPanel);
+    const isKnownId = (id: unknown): id is string =>
+      typeof id === "string" && (isBuiltIn(id) || customPanels.some((p) => p.id === id));
+
+    const order = (parsed.order as unknown[]).filter(isKnownId);
+    for (const id of DEFAULT_ORDER) {
+      if (!order.includes(id)) order.push(id);
+    }
+    const hidden = (parsed.hidden as unknown[]).filter(isKnownId);
+
+    return { order, hidden, customPanels };
   } catch {
     // ignore malformed storage
   }
@@ -148,6 +159,29 @@ export default function InsightsDashboard() {
   const [customPanels, setCustomPanels] = useState<CustomDashboardConfig[]>([]);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [builderConfig, setBuilderConfig] = useState<CustomDashboardConfig | "new" | null>(null);
+  const [dateRange, setDateRange] = useState<DateRangeOption>("30");
+  const [routeFilter, setRouteFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<IncidentType | "">("");
+  const rangeLabel = DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label ?? "Selected range";
+
+  // Route/category scoped but NOT date-range scoped. The At-Risk table's whole purpose is
+  // surfacing overdue open work regardless of when it was created, so a "Last 7 days" pick
+  // in the filter bar shouldn't be able to hide a month-old still-open incident from triage.
+  const routeCategoryScopedIncidents = useMemo(() => {
+    let result = incidents;
+    if (routeFilter) result = result.filter((i) => i.route === routeFilter);
+    if (categoryFilter) result = result.filter((i) => i.type === categoryFilter);
+    return result;
+  }, [incidents, routeFilter, categoryFilter]);
+
+  // Every other panel below reads from this (date range + route + category), so the filter
+  // bar scopes the whole page — except InsightBanner, which deliberately runs its own fixed
+  // 7-vs-prior-7-day analysis on the full dataset regardless of what the user is browsing,
+  // and AtRiskTable, which uses routeCategoryScopedIncidents above instead (see comment there).
+  const scopedIncidents = useMemo(
+    () => incidentsInDateRange(routeCategoryScopedIncidents, dateRange),
+    [routeCategoryScopedIncidents, dateRange]
+  );
 
   useEffect(() => {
     const stored = loadStoredLayout();
@@ -247,78 +281,63 @@ export default function InsightsDashboard() {
 
   const visibleOrder = order.filter((id) => !hidden.includes(id) && (isBuiltIn(id) || customPanels.some((p) => p.id === id)));
 
-  const openIncidents = useMemo(() => incidents.filter(isOpen), [incidents]);
-  const unassignedOpenCount = useMemo(
-    () => openIncidents.filter((i) => !i.assignee).length,
-    [openIncidents]
+  const openIncidents = useMemo(() => scopedIncidents.filter(isOpen), [scopedIncidents]);
+  const atRiskIncidents = useMemo(
+    () => routeCategoryScopedIncidents.filter(isOpen),
+    [routeCategoryScopedIncidents]
   );
-  const typeCounts = useMemo(() => countByType(openIncidents), [openIncidents]);
-  const priorityCounts = useMemo(() => countByPriority(openIncidents), [openIncidents]);
-  const routeCounts = useMemo(() => countByRoute(incidents), [incidents]);
   const assigneeCounts = useMemo(() => countByAssignee(openIncidents), [openIncidents]);
-  const driverCounts = useMemo(() => countByDriver(incidents), [incidents]);
-  const stats = useMemo(() => resolutionStats(incidents), [incidents]);
-  const trend = useMemo(() => dailyTrend(incidents, 14), [incidents]);
-  const resolutionTrend = useMemo(() => dailyResolvedTrend(incidents, 14), [incidents]);
+  // The filter bar's date range now controls this window instead of a hardcoded 90 days.
+  const recurrenceCounts = useMemo(() => countByTypeSorted(scopedIncidents), [scopedIncidents]);
+  const stats = useMemo(() => resolutionStats(scopedIncidents), [scopedIncidents]);
+  const trend = useMemo(() => dailyTrend(scopedIncidents, 14), [scopedIncidents]);
+  const resolutionTrend = useMemo(() => dailyResolvedTrend(scopedIncidents, 14), [scopedIncidents]);
+  const reopenedTrend = useMemo(() => dailyReopenedTrend(scopedIncidents, 14), [scopedIncidents]);
+  const firstResponse = useMemo(() => firstResponseStats(scopedIncidents), [scopedIncidents]);
+  const reopens = useMemo(() => reopenStats(scopedIncidents), [scopedIncidents]);
+
+  // Real 7-day-vs-prior-7-day comparison (the same window the insight banner uses) so KPI
+  // deltas reflect actual data instead of a fabricated "vs last month."
+  const { recent: recentPeriod, prior: priorPeriod, hasPriorData } = useMemo(
+    () => compareLast7DaysToPrior(scopedIncidents),
+    [scopedIncidents]
+  );
+  const recentStats = useMemo(() => resolutionStats(recentPeriod), [recentPeriod]);
+  const priorStats = useMemo(() => resolutionStats(priorPeriod), [priorPeriod]);
+  const recentFirstResponse = useMemo(() => firstResponseStats(recentPeriod), [recentPeriod]);
+  const priorFirstResponse = useMemo(() => firstResponseStats(priorPeriod), [priorPeriod]);
+  const recentReopens = useMemo(() => reopenStats(recentPeriod), [recentPeriod]);
+  const priorReopens = useMemo(() => reopenStats(priorPeriod), [priorPeriod]);
+
+  function buildDelta(
+    recentVal: number | null,
+    priorVal: number | null,
+    goodDirection: "up" | "down",
+    formatMagnitude: (n: number) => string
+  ): { text: string; good: boolean } | null {
+    if (!hasPriorData || recentVal === null || priorVal === null) return null;
+    const diff = recentVal - priorVal;
+    if (diff === 0) return null;
+    const good = goodDirection === "up" ? diff >= 0 : diff <= 0;
+    const arrow = diff >= 0 ? "▲" : "▼";
+    return { text: `${arrow} ${formatMagnitude(Math.abs(diff))}`, good };
+  }
+
+  function formatPts(n: number): string {
+    const rounded = Math.round(n * 10) / 10;
+    return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} pts`;
+  }
+
+  const closeDelta = buildDelta(recentStats.rate, priorStats.rate, "up", formatPts);
+  const timeToCloseDelta = buildDelta(recentStats.avgResolutionHours, priorStats.avgResolutionHours, "down", formatDuration);
+  const firstResponseDelta = buildDelta(recentFirstResponse.avgHours, priorFirstResponse.avgHours, "down", formatDuration);
+  const reopenDelta = buildDelta(recentReopens.reopenRate, priorReopens.reopenRate, "down", formatPts);
+  const last7 = (points: { value: number }[]) => points.slice(-7).map((p) => p.value);
+  const trendNote = hasPriorData ? "vs prior 7 days" : "not enough history yet for a trend";
 
   function renderBuiltInPanel(id: BuiltInPanelId, dragHandle: React.ReactNode) {
     const onRemove = () => removePanel(id);
     switch (id) {
-      case "type":
-        return (
-          <ChartCard
-            title={PANEL_TITLES.type}
-            subtitle="Open + In Review"
-            tableData={typeCounts}
-            dragHandle={dragHandle}
-            onRemove={onRemove}
-          >
-            <BarChart data={typeCounts} />
-          </ChartCard>
-        );
-      case "severity":
-        return (
-          <ChartCard
-            title={PANEL_TITLES.severity}
-            subtitle="Low → Critical"
-            tableData={priorityCounts}
-            dragHandle={dragHandle}
-            onRemove={onRemove}
-          >
-            <BarChart data={priorityCounts} colors={SEVERITY_COLORS} />
-          </ChartCard>
-        );
-      case "resolution":
-        return (
-          <ChartCard
-            title={PANEL_TITLES.resolution}
-            subtitle="All-time, closed vs. total"
-            dragHandle={dragHandle}
-            onRemove={onRemove}
-          >
-            <Meter rate={stats.rate} closedCount={stats.closedCount} total={stats.total} />
-            <Link
-              href="/?view=active"
-              className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
-            >
-              View the {stats.openCount} Open + In Review incidents
-              <ArrowRight className="h-3 w-3" />
-            </Link>
-          </ChartCard>
-        );
-      case "route":
-        return (
-          <ChartCard
-            title={PANEL_TITLES.route}
-            subtitle="All-time volume, top routes"
-            tableData={routeCounts}
-            valueHeader="Incidents"
-            dragHandle={dragHandle}
-            onRemove={onRemove}
-          >
-            <BarChart data={routeCounts} />
-          </ChartCard>
-        );
       case "assignee":
         return (
           <ChartCard
@@ -329,20 +348,20 @@ export default function InsightsDashboard() {
             dragHandle={dragHandle}
             onRemove={onRemove}
           >
-            <BarChart data={assigneeCounts} />
+            <HorizontalBarList data={assigneeCounts} />
           </ChartCard>
         );
-      case "driver":
+      case "recurrence":
         return (
           <ChartCard
-            title={PANEL_TITLES.driver}
-            subtitle="All-time volume, top drivers"
-            tableData={driverCounts}
+            title={PANEL_TITLES.recurrence}
+            subtitle={`Incident count, ${rangeLabel.toLowerCase()} — where systemic fixes matter most`}
+            tableData={recurrenceCounts}
             valueHeader="Incidents"
             dragHandle={dragHandle}
             onRemove={onRemove}
           >
-            <BarChart data={driverCounts} />
+            <HorizontalBarList data={recurrenceCounts} />
           </ChartCard>
         );
       case "trend":
@@ -358,24 +377,17 @@ export default function InsightsDashboard() {
             <TrendLineChart data={trend} />
           </ChartCard>
         );
-      case "resolutionTrend":
+      case "atRisk":
         return (
-          <ChartCard
-            title={PANEL_TITLES.resolutionTrend}
-            subtitle="Incidents resolved per day"
-            tableData={resolutionTrend}
-            valueHeader="Resolved"
-            dragHandle={dragHandle}
-            onRemove={onRemove}
-          >
-            <TrendLineChart data={resolutionTrend} />
+          <ChartCard title={PANEL_TITLES.atRisk} subtitle="Open, ranked by SLA urgency" dragHandle={dragHandle} onRemove={onRemove}>
+            <AtRiskTable incidents={atRiskIncidents} />
           </ChartCard>
         );
     }
   }
 
   function renderCustomPanel(config: CustomDashboardConfig, dragHandle: React.ReactNode) {
-    const scoped = applyCustomFilters(incidents, config.filters);
+    const scoped = applyCustomFilters(scopedIncidents, config.filters);
     const subtitle = describeCustomFilters(config.filters);
     const onRemove = () => deleteCustomPanel(config.id);
     const onEdit = () => setBuilderConfig(config);
@@ -397,7 +409,11 @@ export default function InsightsDashboard() {
     }
 
     const trendData =
-      config.trendMetric === "resolved" ? dailyResolvedTrend(scoped, 14) : dailyTrend(scoped, 14);
+      config.trendMetric === "resolved"
+        ? dailyResolvedTrend(scoped, 14)
+        : config.trendMetric === "reopened"
+          ? dailyReopenedTrend(scoped, 14)
+          : dailyTrend(scoped, 14);
     return (
       <ChartCard
         title={config.title}
@@ -426,7 +442,7 @@ export default function InsightsDashboard() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Incident Insights</h1>
           <p className="mt-0.5 text-sm text-slate-400">
-            Live view across all incidents. Drag a panel&apos;s grip handle to reorder.
+            Live view, scoped by the filters below. Drag a panel&apos;s grip handle to reorder.
             {lastUpdated && <> Updated {formatTime(lastUpdated)}.</>}
           </p>
         </div>
@@ -497,24 +513,54 @@ export default function InsightsDashboard() {
         </div>
       </div>
 
+      <FilterBar
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        routes={meta?.routes ?? []}
+        routeFilter={routeFilter}
+        onRouteFilterChange={setRouteFilter}
+        categories={meta?.incidentTypes ?? []}
+        categoryFilter={categoryFilter}
+        onCategoryFilterChange={setCategoryFilter}
+      />
+
       {loading ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-400">
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-400">
           Loading insights...
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="mt-6 space-y-6">
+          <InsightBanner incidents={incidents} />
+
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatTile label="Total Incidents" value={formatCompact(stats.total)} />
-            <StatTile label="Open Incidents" value={formatCompact(stats.openCount)} />
-            <StatTile
-              label="Unassigned (Open)"
-              value={formatCompact(unassignedOpenCount)}
-              caption={unassignedOpenCount > 0 ? "Needs an owner" : undefined}
+            <KpiTrendTile
+              label="Close Rate"
+              value={`${stats.rate.toFixed(0)}%`}
+              delta={closeDelta}
+              caption={`${trendNote} · target ${KPI_TARGETS.closeRatePct}%`}
+              sparkline={last7(resolutionTrend)}
             />
-            <StatTile
-              label="Avg. Time to Resolve"
+            <KpiTrendTile
+              label="Avg. Time to Close"
               value={formatDuration(stats.avgResolutionHours)}
-              caption={stats.closedCount > 0 ? `Across ${stats.closedCount} closed` : "No closed incidents yet"}
+              delta={timeToCloseDelta}
+              caption={`${trendNote} · SLA target ${formatDuration(KPI_TARGETS.avgTimeToCloseHours)}`}
+              sparkline={last7(resolutionTrend)}
+            />
+            <KpiTrendTile
+              label="Avg. First Response"
+              value={formatDuration(firstResponse.avgHours)}
+              delta={firstResponseDelta}
+              caption={`${trendNote} · target < ${formatDuration(KPI_TARGETS.avgFirstResponseHours)}`}
+              sparkline={last7(trend)}
+            />
+            <KpiTrendTile
+              label="Reopen Rate"
+              value={`${reopens.reopenRate.toFixed(0)}%`}
+              delta={reopenDelta}
+              caption={`${trendNote} · watch threshold ${KPI_TARGETS.reopenWatchThresholdPct}%`}
+              sparkline={last7(reopenedTrend)}
+              flag={reopens.reopenRate > KPI_TARGETS.reopenWatchThresholdPct ? "trending the wrong way — review" : undefined}
             />
           </div>
 
@@ -528,7 +574,7 @@ export default function InsightsDashboard() {
               <SortableContext items={visibleOrder} strategy={rectSortingStrategy}>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {visibleOrder.map((id) => (
-                    <SortablePanel key={id} id={id}>
+                    <SortablePanel key={id} id={id} className={WIDE_PANELS[id]}>
                       {(dragHandle) => renderPanel(id, dragHandle)}
                     </SortablePanel>
                   ))}

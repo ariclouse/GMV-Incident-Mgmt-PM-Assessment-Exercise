@@ -8,11 +8,15 @@ import {
   CustomDashboardConfig,
   GroupByField,
   GROUP_BY_OPTIONS,
+  SlaStatus,
+  SLA_STATUS_LABELS,
   StatusScope,
   STATUS_SCOPE_OPTIONS,
   TrendMetric,
   TREND_METRIC_OPTIONS,
 } from "@/lib/insights";
+
+const SLA_STATUS_VALUES: SlaStatus[] = ["onTrack", "atRisk", "overdue"];
 import Dialog from "../ui/Dialog";
 import Button from "../ui/Button";
 
@@ -39,6 +43,7 @@ export default function CreateDashboardModal({
   const [statusScope, setStatusScope] = useState<StatusScope>(initialConfig?.filters.status ?? "all");
   const [types, setTypes] = useState<IncidentType[]>(initialConfig?.filters.types ?? []);
   const [routes, setRoutes] = useState<string[]>(initialConfig?.filters.routes ?? []);
+  const [slaStatuses, setSlaStatuses] = useState<SlaStatus[]>(initialConfig?.filters.slaStatuses ?? []);
 
   function toggle<T>(list: T[], value: T): T[] {
     return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -52,7 +57,7 @@ export default function CreateDashboardModal({
       chartKind,
       groupBy,
       trendMetric,
-      filters: { status: statusScope, types, routes },
+      filters: { status: statusScope, types, routes, slaStatuses },
     });
   }
 
@@ -185,6 +190,22 @@ export default function CreateDashboardModal({
                         className="h-3.5 w-3.5 rounded border-slate-300"
                       />
                       {r}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs font-semibold text-slate-600">SLA Status</p>
+                <div className="space-y-1 rounded-md border border-slate-200 p-2">
+                  {SLA_STATUS_VALUES.map((s) => (
+                    <label key={s} className="flex items-center gap-2 text-xs text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={slaStatuses.includes(s)}
+                        onChange={() => setSlaStatuses((prev) => toggle(prev, s))}
+                        className="h-3.5 w-3.5 rounded border-slate-300"
+                      />
+                      {SLA_STATUS_LABELS[s]}
                     </label>
                   ))}
                 </div>

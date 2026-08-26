@@ -58,6 +58,8 @@ export interface Incident {
   date: string;
   updatedAt: string;
   closedAt?: string;
+  reopenCount?: number;
+  lastReopenedAt?: string;
   assignee?: UserRef;
   description: string;
   resolution?: string;

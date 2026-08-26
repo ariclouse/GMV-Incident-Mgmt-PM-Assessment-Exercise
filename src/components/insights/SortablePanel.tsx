@@ -6,9 +6,11 @@ import { GripVertical } from "lucide-react";
 
 export default function SortablePanel({
   id,
+  className,
   children,
 }: {
   id: string;
+  className?: string;
   children: (dragHandle: React.ReactNode) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
@@ -35,7 +37,7 @@ export default function SortablePanel({
   );
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className={className}>
       {children(dragHandle)}
     </div>
   );

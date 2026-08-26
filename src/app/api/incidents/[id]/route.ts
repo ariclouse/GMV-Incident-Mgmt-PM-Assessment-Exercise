@@ -47,6 +47,10 @@ export async function PATCH(
     // Closing stamps closedAt; moving off Closed (e.g. reopening) must clear it, or
     // resolution-trend charts and exports keep attributing a still-open incident to its old close date.
     patch.closedAt = patch.status === "Closed" ? new Date().toISOString() : undefined;
+    if (before.status === "Closed") {
+      patch.reopenCount = (before.reopenCount ?? 0) + 1;
+      patch.lastReopenedAt = new Date().toISOString();
+    }
   }
 
   if (patch.assignee !== undefined) {
