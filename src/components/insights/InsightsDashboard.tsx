@@ -26,6 +26,7 @@ import {
   dailyTrend,
   DateRangeOption,
   DATE_RANGE_OPTIONS,
+  daysInDateRange,
   describeCustomFilters,
   firstResponseStats,
   formatDuration,
@@ -68,8 +69,8 @@ const DEFAULT_ORDER: BuiltInPanelId[] = [
 
 const PANEL_TITLES: Record<BuiltInPanelId, string> = {
   assignee: "Incidents by Assignee",
-  recurrence: "Recurrence by Category",
-  trend: "Incident Volume — Last 14 Days",
+  recurrence: "Recurrence by Type",
+  trend: "Incident Volume",
   atRisk: "At-Risk & Overdue Incidents",
 };
 
@@ -290,7 +291,12 @@ export default function InsightsDashboard() {
   // The filter bar's date range now controls this window instead of a hardcoded 90 days.
   const recurrenceCounts = useMemo(() => countByTypeSorted(scopedIncidents), [scopedIncidents]);
   const stats = useMemo(() => resolutionStats(scopedIncidents), [scopedIncidents]);
-  const trend = useMemo(() => dailyTrend(scopedIncidents, 14), [scopedIncidents]);
+  // Follows the filter bar's date range instead of a fixed window, so switching to "Last 90
+  // days" or "This quarter" actually widens the chart rather than always showing 14 days.
+  const trend = useMemo(
+    () => dailyTrend(scopedIncidents, daysInDateRange(dateRange)),
+    [scopedIncidents, dateRange]
+  );
   const resolutionTrend = useMemo(() => dailyResolvedTrend(scopedIncidents, 14), [scopedIncidents]);
   const reopenedTrend = useMemo(() => dailyReopenedTrend(scopedIncidents, 14), [scopedIncidents]);
   const firstResponse = useMemo(() => firstResponseStats(scopedIncidents), [scopedIncidents]);
@@ -367,7 +373,7 @@ export default function InsightsDashboard() {
       case "trend":
         return (
           <ChartCard
-            title={PANEL_TITLES.trend}
+            title={`${PANEL_TITLES.trend} — ${rangeLabel}`}
             subtitle="New incidents created per day"
             tableData={trend}
             valueHeader="Incidents"

@@ -98,13 +98,32 @@ export const DATE_RANGE_OPTIONS: { value: DateRangeOption; label: string }[] = [
   { value: "quarter", label: "This quarter" },
 ];
 
+function quarterStartDate(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+}
+
 export function incidentsInDateRange(incidents: Incident[], range: DateRangeOption): Incident[] {
   if (range === "quarter") {
-    const now = new Date();
-    const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-    return incidents.filter((i) => new Date(i.date) >= quarterStart);
+    const start = quarterStartDate();
+    return incidents.filter((i) => new Date(i.date) >= start);
   }
   return incidentsInLastDays(incidents, Number(range));
+}
+
+// Number of daily buckets a trend chart needs to cover the same window the date-range
+// filter selected, so "Incident Volume" isn't stuck on a fixed 14-day span regardless of
+// what's chosen at the top of the page.
+export function daysInDateRange(range: DateRangeOption): number {
+  if (range === "quarter") {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Both dates are local midnight, so this is an exact whole-day count except across a
+    // DST transition (23 or 25 real hours) — round rather than floor/ceil to absorb that.
+    const wholeDays = Math.round((today.getTime() - quarterStartDate().getTime()) / (24 * 60 * 60 * 1000));
+    return wholeDays + 1;
+  }
+  return Number(range);
 }
 
 export function countByPriority(incidents: Incident[]): CountItem[] {
