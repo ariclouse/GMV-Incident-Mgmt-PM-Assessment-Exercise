@@ -5,7 +5,7 @@ const USERS: UserRef[] = [
   { id: "u2", name: "Nadia Navarez", initials: "NN" },
   { id: "u3", name: "Holly Ingles", initials: "HI" },
   { id: "u4", name: "Marcus Reed", initials: "MR" },
-  { id: "u5", name: "First Name", initials: "FN" },
+  { id: "u5", name: "Polly Darton", initials: "PD" },
 ];
 
 const VEHICLES = [
@@ -338,7 +338,7 @@ function seedIncidents(): Incident[] {
       description:
         "<p>An incident was logged for Vehicle 45 on DASH F that didn't fit a standard category. Luther Vandross provided initial details; team is reviewing.</p>",
       activity: [
-        activity("system", "First Name created this incident.", USERS[4], atFraction(4, 0.1)),
+        activity("system", "Polly Darton created this incident.", USERS[4], atFraction(4, 0.1)),
       ],
       attachments: [],
       vehicleHistory: [],
@@ -357,8 +357,8 @@ function seedIncidents(): Incident[] {
       description:
         "<p>Vehicle 12 experienced a mechanical issue while operating Route 1 - Downtown. Priya Chandra radioed dispatch and awaited a swap vehicle.</p>",
       activity: [
-        activity("system", "Holly Ingles assigned First Name to Incident 214.", undefined, atFraction(24, 0.2)),
-        activity("system", "First Name moved Incident 214 from Open to In Review.", USERS[4], atFraction(24, 0.4)),
+        activity("system", "Holly Ingles assigned Polly Darton to Incident 214.", undefined, atFraction(24, 0.2)),
+        activity("system", "Polly Darton moved Incident 214 from Open to In Review.", USERS[4], atFraction(24, 0.4)),
         activity("comment", "Swap vehicle dispatched; awaiting confirmation.", USERS[4], atFraction(24, 0.6)),
       ],
       attachments: [],
@@ -436,7 +436,7 @@ function seedIncidents(): Incident[] {
       description:
         "<p>Glendale Long Loop experienced a service disruption impacting Vehicle 22 and driver Alvin Valdez. Dispatch coordinated a detour and rider notifications went out.</p>",
       activity: [
-        activity("system", "First Name created this incident.", USERS[4], atFraction(8, 0.15)),
+        activity("system", "Polly Darton created this incident.", USERS[4], atFraction(8, 0.15)),
       ],
       attachments: [],
       vehicleHistory: [],
@@ -499,7 +499,7 @@ function seedIncidents(): Incident[] {
       description:
         "<p>Vehicle 8 reported a mechanical fault on Westlake Express. Driver Denise Okafor safely brought the vehicle to a stop and requested maintenance support.</p>",
       activity: [
-        activity("system", "First Name assigned First Name to Incident 220.", USERS[4], atFraction(6, 0.15)),
+        activity("system", "Polly Darton assigned Polly Darton to Incident 220.", USERS[4], atFraction(6, 0.15)),
         activity("comment", "Maintenance en route to the vehicle's location.", USERS[4], atFraction(6, 0.4)),
       ],
       attachments: [],

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { HelpCircle, MessageSquare, MessageCircle, UserCircle2 } from "lucide-react";
+import { CURRENT_USER } from "@/lib/currentUser";
 
 const PRIMARY_NAV = ["DISPATCH", "OPS", "PLAN", "RIDE", "MAINTENANCE", "ADMIN"];
 
@@ -38,7 +39,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <MessageSquare className="h-5 w-5 cursor-pointer hover:text-white" />
           <MessageCircle className="h-5 w-5 cursor-pointer hover:text-white" />
           <UserCircle2 className="h-5 w-5" />
-          <span className="text-xs font-semibold tracking-wide">FIRST NAME</span>
+          <span className="text-xs font-semibold tracking-wide">{CURRENT_USER.name.toUpperCase()}</span>
         </div>
       </header>
       <div className="flex h-10 items-center gap-6 bg-gradient-to-r from-[#16243f] to-[#2f6fce] px-6 text-sm text-slate-200">

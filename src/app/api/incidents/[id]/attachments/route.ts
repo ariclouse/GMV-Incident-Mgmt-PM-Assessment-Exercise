@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { store, uid, activity } from "@/lib/store";
+import { CURRENT_USER } from "@/lib/currentUser";
 
 export async function POST(
   req: NextRequest,
@@ -17,7 +18,7 @@ export async function POST(
     name,
     dataUrl,
     kind: kind === "image" ? ("image" as const) : ("document" as const),
-    uploadedBy: uploadedBy ?? "First Name",
+    uploadedBy: uploadedBy ?? CURRENT_USER.name,
     uploadedAt: new Date().toISOString(),
   };
 
