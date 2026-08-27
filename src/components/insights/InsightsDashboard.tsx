@@ -160,7 +160,7 @@ export default function InsightsDashboard() {
   const [customPanels, setCustomPanels] = useState<CustomDashboardConfig[]>([]);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [builderConfig, setBuilderConfig] = useState<CustomDashboardConfig | "new" | null>(null);
-  const [dateRange, setDateRange] = useState<DateRangeOption>("7");
+  const [dateRange, setDateRange] = useState<DateRangeOption>("30");
   const [routeFilter, setRouteFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<IncidentType | "">("");
   const rangeLabel = DATE_RANGE_OPTIONS.find((o) => o.value === dateRange)?.label ?? "Selected range";
