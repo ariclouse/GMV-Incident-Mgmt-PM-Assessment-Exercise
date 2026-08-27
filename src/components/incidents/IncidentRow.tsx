@@ -14,6 +14,17 @@ const PRIORITY_BORDER: Record<Priority, string> = {
   Low: "border-l-slate-300",
 };
 
+// Each route keeps a fixed color so it reads as a quick visual anchor across the table.
+// Unlisted routes (e.g. a new one added via meta) fall back to a neutral slate.
+const ROUTE_COLORS: Record<string, string> = {
+  "Glendale Long Loop": "bg-blue-500",
+  "DASH F": "bg-orange-500",
+  "Route 1 - Downtown": "bg-purple-900",
+  "Westlake Express": "bg-teal-600",
+  "702 Crosstown": "bg-rose-700",
+};
+const DEFAULT_ROUTE_COLOR = "bg-slate-500";
+
 export default function IncidentRow({
   incident,
   expanded,
@@ -52,7 +63,11 @@ export default function IncidentRow({
       <span className="text-sm font-semibold text-slate-700">{incident.vehicleNumber}</span>
       <Avatar initials={initialsFromName(incident.driverName)} name={incident.driverName} size="sm" />
       <span>
-        <span className="inline-block rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white">
+        <span
+          className={`inline-block rounded px-2 py-1 text-xs font-medium text-white ${
+            ROUTE_COLORS[incident.route] ?? DEFAULT_ROUTE_COLOR
+          }`}
+        >
           {incident.route}
         </span>
       </span>
